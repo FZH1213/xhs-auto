@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小红书自动发布系统</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        #app {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav {
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: #f5f5f5;
+            color: #666;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .nav-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .nav-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea.form-control {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .draft-list {
+            margin-top: 20px;
+        }
+
+        .draft-item {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 4px solid #667eea;
+        }
+
+        .draft-item:hover {
+            background: #f0f0f0;
+            transform: translateX(5px);
+        }
+
+        .draft-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .draft-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .draft-meta {
+            display: flex;
+            gap: 15px;
+            color: #999;
+            font-size: 13px;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-draft {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-approved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-rejected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-published {
+            background: #dbeafe;
+            color: #1e3a8a;
+        }
+
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .detail-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .content-box {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .topics-box {
+            margin-bottom: 20px;
+        }
+
+        .topic-tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            margin-right: 10px;
+            font-size: 13px;
+        }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .image-item {
+            background: #f5f5f5;
+            height: 150px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 64px;
+            margin-bottom: 20px;
+            color: #ddd;
+        }
+
+        .config-section {
+            margin-bottom: 30px;
+        }
+
+        .config-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .api-key-input {
+            font-family: monospace;
+        }
+
+        .key-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .key-status.configured {
+            color: #10b981;
+        }
+
+        .key-status.not-configured {
+            color: #f59e0b;
+        }
+
+        @media (max-width: 768px) {
+            #app {
+                padding: 10px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .nav {
+                flex-wrap: wrap;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .detail-actions {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                <i class="ri-book-open-line"></i>
+                小红书自动发布系统
+            </h1>
+            <div class="nav">
+                <button class="nav-btn" :class="{active: currentView === 'home'}" @click="currentView = 'home'">
+                    <i class="ri-home-line"></i> 首页
+                </button>
+                <button class="nav-btn" :class="{active: currentView === 'generate'}" @click="currentView = 'generate'">
+                    <i class="ri-magic-line"></i> 生成内容
+                </button>
+                <button class="nav-btn" :class="{active: currentView === 'drafts'}" @click="loadDrafts">
+                    <i class="ri-file-list-3-line"></i> 草稿箱
+                </button>
+                <button class="nav-btn" :class="{active: currentView === 'settings'}" @click="loadConfig">
+                    <i class="ri-settings-3-line"></i> 设置
+                </button>
+            </div>
+        </div>
+
+        <!-- Home View -->
+        <div v-if="currentView === 'home'">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>{{ stats.total || 0 }}</h3>
+                    <p>总草稿数</p>
+                </div>
+                <div class="stat-card">
+                    <h3>{{ stats.draft || 0 }}</h3>
+                    <p>待审核</p>
+                </div>
+                <div class="stat-card">
+                    <h3>{{ stats.approved || 0 }}</h3>
+                    <p>已审核</p>
+                </div>
+                <div class="stat-card">
+                    <h3>{{ stats.published || 0 }}</h3>
+                    <p>已发布</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 style="margin-bottom: 20px;">快速开始</h2>
+                <p style="color: #666; line-height: 1.8; margin-bottom: 20px;">
+                    这是一个小红书内容自动生成和发布工具。你可以：
+                </p>
+                <ul style="color: #666; line-height: 2; margin-left: 20px;">
+                    <li>🎨 使用AI自动生成小红书风格的内容（标题、正文、话题标签）</li>
+                    <li>📝 在线管理和编辑草稿</li>
+                    <li>✅ 审核确认后再发布</li>
+                    <li>🚀 一键发布到小红书（开发中）</li>
+                </ul>
+                <div style="margin-top: 30px;">
+                    <button class="btn btn-primary" @click="currentView = 'generate'">
+                        <i class="ri-magic-line"></i> 开始生成内容
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generate View -->
+        <div v-if="currentView === 'generate'" class="card">
+            <h2 style="margin-bottom: 20px;">生成新内容</h2>
+
+            <div v-if="message.text" :class="['alert', message.type === 'success' ? 'alert-success' : 'alert-error']">
+                {{ message.text }}
+            </div>
+
+            <div class="form-group">
+                <label>内容主题</label>
+                <input type="text" class="form-control" v-model="generateForm.topic"
+                       placeholder="例如：秋冬穿搭、Python入门教程、美食分享...">
+            </div>
+
+            <div class="form-group">
+                <label>内容风格</label>
+                <select class="form-control" v-model="generateForm.style">
+                    <option v-for="style in styles" :key="style.key" :value="style.key">
+                        {{ style.name }} - {{ style.description }}
+                    </option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>AI提供商</label>
+                <select class="form-control" v-model="generateForm.provider">
+                    <option value="bailian">阿里云百炼 (推荐)</option>
+                    <option value="claude">Claude</option>
+                    <option value="openai">OpenAI</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>图片数量</label>
+                <input type="number" class="form-control" v-model="generateForm.image_count"
+                       min="1" max="9" style="width: 150px;">
+            </div>
+
+            <button class="btn btn-primary" @click="generateContent" :disabled="generating">
+                <i class="ri-loader-4-line" v-if="generating" style="animation: spin 1s linear infinite;"></i>
+                <i class="ri-magic-line" v-else></i>
+                {{ generating ? '生成中...' : '生成内容' }}
+            </button>
+
+            <!-- 生成结果预览 -->
+            <div v-if="generatedDraft" style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 30px;">
+                <h3 style="margin-bottom: 20px;">✨ 生成结果</h3>
+
+                <div class="form-group">
+                    <label>标题</label>
+                    <input type="text" class="form-control" v-model="generatedDraft.title">
+                </div>
+
+                <div class="form-group">
+                    <label>正文内容</label>
+                    <textarea class="form-control" v-model="generatedDraft.content"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>话题标签</label>
+                    <input type="text" class="form-control"
+                           :value="generatedDraft.topics ? generatedDraft.topics.map(t => '#' + t).join(' ') : ''"
+                           @input="updateTopics" placeholder="用空格分隔，例如：#穿搭 #秋冬">
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-success" @click="approveGeneratedDraft">
+                        <i class="ri-check-line"></i> 确认保存
+                    </button>
+                    <button class="btn btn-secondary" @click="generatedDraft = null">
+                        <i class="ri-close-line"></i> 取消
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drafts View -->
+        <div v-if="currentView === 'drafts'" class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>草稿箱</h2>
+                <div class="filter-bar">
+                    <select class="form-control" v-model="filterStatus" @change="loadDrafts" style="width: 150px;">
+                        <option value="">全部状态</option>
+                        <option value="draft">待审核</option>
+                        <option value="approved">已审核</option>
+                        <option value="rejected">已拒绝</option>
+                        <option value="published">已发布</option>
+                    </select>
+                </div>
+            </div>
+
+            <div v-if="loading" class="loading">
+                <i class="ri-loader-4-line" style="font-size: 32px; animation: spin 1s linear infinite;"></i>
+                <p>加载中...</p>
+            </div>
+
+            <div v-else-if="drafts.length === 0" class="empty-state">
+                <i class="ri-inbox-line"></i>
+                <p>暂无草稿</p>
+            </div>
+
+            <div v-else class="draft-list">
+                <div v-for="draft in drafts" :key="draft.id" class="draft-item" @click="viewDraft(draft.id)">
+                    <div class="draft-header">
+                        <div class="draft-title">{{ draft.title }}</div>
+                        <span :class="['status-badge', 'status-' + draft.status]">
+                            {{ getStatusText(draft.status) }}
+                        </span>
+                    </div>
+                    <div class="draft-meta">
+                        <span><i class="ri-calendar-line"></i> {{ formatDate(draft.created_at) }}</span>
+                        <span v-if="draft.style"><i class="ri-palette-line"></i> {{ draft.style }}</span>
+                        <span v-if="draft.images && draft.images.length"><i class="ri-image-line"></i> {{ draft.images.length }}张图片</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Draft Detail View -->
+        <div v-if="currentView === 'detail'" class="card">
+            <div class="detail-header">
+                <h2>草稿详情</h2>
+                <div class="detail-actions">
+                    <button class="btn btn-secondary" @click="loadDrafts">
+                        <i class="ri-arrow-left-line"></i> 返回列表
+                    </button>
+                    <button class="btn btn-success" v-if="currentDraft && currentDraft.status === 'draft'" @click="approveDraft(currentDraft.id)">
+                        <i class="ri-check-line"></i> 批准
+                    </button>
+                    <button class="btn btn-danger" @click="deleteDraft(currentDraft.id)">
+                        <i class="ri-delete-bin-line"></i> 删除
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="loading" class="loading">
+                <i class="ri-loader-4-line" style="font-size: 32px; animation: spin 1s linear infinite;"></i>
+            </div>
+
+            <div v-else-if="currentDraft">
+                <div class="form-group">
+                    <label>标题</label>
+                    <input type="text" class="form-control" v-model="currentDraft.title" @blur="updateDraft">
+                </div>
+
+                <div class="form-group">
+                    <label>正文内容</label>
+                    <textarea class="form-control" v-model="currentDraft.content" @blur="updateDraft"></textarea>
+                </div>
+
+                <div class="topics-box">
+                    <label style="display: block; margin-bottom: 10px;">话题标签</label>
+                    <span v-for="topic in currentDraft.topics" :key="topic" class="topic-tag">#{{ topic }}</span>
+                </div>
+
+                <div v-if="currentDraft.images && currentDraft.images.length">
+                    <label style="display: block; margin-bottom: 10px;">图片 ({{ currentDraft.images.length }}张)</label>
+                    <div class="image-grid">
+                        <div v-for="(img, index) in currentDraft.images" :key="index" class="image-item">
+                            <i class="ri-image-line" style="font-size: 32px;"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 13px;">
+                    <p>创建时间: {{ formatDate(currentDraft.created_at) }}</p>
+                    <p v-if="currentDraft.published_at">发布时间: {{ formatDate(currentDraft.published_at) }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings View -->
+        <div v-if="currentView === 'settings'" class="card">
+            <h2 style="margin-bottom: 20px;">系统设置</h2>
+
+            <div v-if="message.text" :class="['alert', message.type === 'success' ? 'alert-success' : 'alert-error']">
+                {{ message.text }}
+            </div>
+
+            <div class="config-section">
+                <h3>AI配置</h3>
+
+                <div class="form-group">
+                    <label>阿里云百炼 API Key</label>
+                    <input type="password" class="form-control api-key-input"
+                           v-model="configForm.bailian_api_key"
+                           :placeholder="configForm.has_bailian_key ? '已配置（留空保持不变）' : '请输入百炼API密钥（sk-...）'">
+                    <div style="margin-top: 5px; font-size: 12px; color: #999;">
+                        <span v-if="configForm.has_bailian_key" style="color: #10b981;">
+                            ✓ 密钥已配置，留空表示保持原配置不变
+                        </span>
+                        <span v-else style="color: #f59e0b;">
+                            ⚠️ 请输入API密钥
+                        </span>
+                    </div>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label style="font-size: 13px; color: #666;">选择模型</label>
+                        <select class="form-control" v-model="configForm.bailian_model" style="width: 100%; max-width: 300px;">
+                            <optgroup label="🚀 通义千问系列（推荐）">
+                                <option value="qwen3-max-2026-01-23">qwen3-max（最新最强）</option>
+                                <option value="qwen3.7-plus">qwen3.7-plus（推荐）⭐</option>
+                                <option value="qwen3.6-plus">qwen3.6-plus</option>
+                                <option value="qwen3.5-plus">qwen3.5-plus</option>
+                                <option value="qwen3-coder-plus">qwen3-coder-plus（代码优化）</option>
+                                <option value="qwen3-coder-next">qwen3-coder-next（代码增强）</option>
+                            </optgroup>
+                            <optgroup label="🤗 其他大模型">
+                                <option value="glm-5">GLM-5（智谱AI）⭐</option>
+                                <option value="glm-4.7">GLM-4.7（智谱AI）</option>
+                                <option value="kimi-k2.5">Kimi-K2.5（月之暗面）</option>
+                                <option value="MiniMax-M2.5">MiniMax-M2.5</option>
+                            </optgroup>
+                        </select>
+                        <div style="margin-top: 8px; font-size: 12px; color: #999;">
+                            💡 推荐：<strong>glm-5</strong> 或 <strong>qwen3.7-plus</strong>
+                        </div>
+                    </div>
+                    <div :class="['key-status', configForm.has_bailian_key ? 'configured' : 'not-configured']">
+                        <i :class="configForm.has_bailian_key ? 'ri-check-circle-line' : 'ri-error-warning-line'"></i>
+                        {{ configForm.has_bailian_key ? '已配置' : '未配置' }}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Claude API Key</label>
+                    <input type="password" class="form-control api-key-input"
+                           v-model="configForm.claude_api_key"
+                           :placeholder="configForm.has_claude_key ? '已配置（留空保持不变）' : '请输入Claude API密钥（sk-ant-...）'">
+                    <div style="margin-top: 5px; font-size: 12px; color: #999;">
+                        <span v-if="configForm.has_claude_key" style="color: #10b981;">
+                            ✓ 密钥已配置，留空表示保持原配置不变
+                        </span>
+                        <span v-else style="color: #f59e0b;">
+                            ⚠️ 请输入API密钥
+                        </span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>OpenAI API Key</label>
+                    <input type="password" class="form-control api-key-input"
+                           v-model="configForm.openai_api_key"
+                           :placeholder="configForm.has_openai_key ? '已配置（留空保持不变）' : '请输入OpenAI API密钥（sk-...）'">
+                    <div style="margin-top: 5px; font-size: 12px; color: #999;">
+                        <span v-if="configForm.has_openai_key" style="color: #10b981;">
+                            ✓ 密钥已配置，留空表示保持原配置不变
+                        </span>
+                        <span v-else style="color: #f59e0b;">
+                            ⚠️ 请输入API密钥
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" @click="saveConfig">
+                <i class="ri-save-line"></i> 保存配置
+            </button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    currentView: 'home',
+                    loading: false,
+                    generating: false,
+
+                    // 统计数据
+                    stats: {},
+
+                    // 草稿列表
+                    drafts: [],
+                    filterStatus: '',
+                    currentDraft: null,
+
+                    // 生成表单
+                    generateForm: {
+                        topic: '',
+                        style: 'zhongcao',
+                        provider: 'bailian',
+                        image_count: 3
+                    },
+                    styles: [],
+                    generatedDraft: null,
+
+                    // 配置
+                    configForm: {
+                        bailian_api_key: '',
+                        bailian_model: 'qwen3.7-plus',
+                        claude_api_key: '',
+                        openai_api_key: '',
+                        has_bailian_key: false,
+                        has_claude_key: false,
+                        has_openai_key: false
+                    },
+
+                    // 消息
+                    message: {
+                        text: '',
+                        type: 'success'
+                    }
+                };
+            },
+
+            mounted() {
+                this.loadStats();
+                this.loadStyles();
+            },
+
+            methods: {
+                // 显示消息
+                showMessage(text, type = 'success') {
+                    this.message = { text, type };
+                    setTimeout(() => {
+                        this.message = { text: '', type: 'success' };
+                    }, 3000);
+                },
+
+                // 加载统计数据
+                async loadStats() {
+                    try {
+                        const res = await axios.get('/api/stats');
+                        this.stats = res.data.data;
+                    } catch (err) {
+                        console.error('加载统计失败:', err);
+                    }
+                },
+
+                // 加载风格列表
+                async loadStyles() {
+                    try {
+                        const res = await axios.get('/api/styles');
+                        this.styles = res.data.data;
+                    } catch (err) {
+                        console.error('加载风格失败:', err);
+                    }
+                },
+
+                // 加载草稿列表
+                async loadDrafts() {
+                    this.currentView = 'drafts';
+                    this.loading = true;
+                    try {
+                        const res = await axios.get('/api/drafts', {
+                            params: { status: this.filterStatus }
+                        });
+                        this.drafts = res.data.data;
+                    } catch (err) {
+                        this.showMessage('加载草稿失败', 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 查看草稿详情
+                async viewDraft(id) {
+                    this.loading = true;
+                    this.currentView = 'detail';
+                    try {
+                        const res = await axios.get(`/api/drafts/${id}`);
+                        this.currentDraft = res.data.data;
+                    } catch (err) {
+                        this.showMessage('加载草稿失败', 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 更新草稿
+                async updateDraft() {
+                    if (!this.currentDraft) return;
+
+                    try {
+                        await axios.put(`/api/drafts/${this.currentDraft.id}`, {
+                            title: this.currentDraft.title,
+                            content: this.currentDraft.content,
+                            topics: this.currentDraft.topics
+                        });
+                    } catch (err) {
+                        this.showMessage('更新失败', 'error');
+                    }
+                },
+
+                // 批准草稿
+                async approveDraft(id) {
+                    try {
+                        await axios.put(`/api/drafts/${id}/approve`);
+                        this.showMessage('已批准');
+                        this.currentDraft.status = 'approved';
+                        this.loadStats();
+                    } catch (err) {
+                        this.showMessage('操作失败', 'error');
+                    }
+                },
+
+                // 删除草稿
+                async deleteDraft(id) {
+                    if (!confirm('确定要删除这个草稿吗？')) return;
+
+                    try {
+                        await axios.delete(`/api/drafts/${id}`);
+                        this.showMessage('已删除');
+                        this.loadDrafts();
+                        this.loadStats();
+                    } catch (err) {
+                        this.showMessage('删除失败', 'error');
+                    }
+                },
+
+                // 生成内容
+                async generateContent() {
+                    if (!this.generateForm.topic.trim()) {
+                        this.showMessage('请输入内容主题', 'error');
+                        return;
+                    }
+
+                    this.generating = true;
+                    this.generatedDraft = null;
+
+                    try {
+                        const res = await axios.post('/api/generate', this.generateForm);
+                        this.generatedDraft = res.data.data;
+                        this.showMessage('内容生成成功！');
+                        this.loadStats();
+                    } catch (err) {
+                        const error = err.response?.data?.detail || '生成失败';
+                        this.showMessage(error, 'error');
+                    } finally {
+                        this.generating = false;
+                    }
+                },
+
+                // 更新话题标签
+                updateTopics(event) {
+                    const value = event.target.value;
+                    const topics = value.split(/\s+/)
+                        .map(t => t.replace(/^#/, ''))
+                        .filter(t => t);
+                    this.generatedDraft.topics = topics;
+                },
+
+                // 批准生成的草稿
+                async approveGeneratedDraft() {
+                    if (!this.generatedDraft) return;
+
+                    try {
+                        await axios.put(`/api/drafts/${this.generatedDraft.id}/approve`);
+                        this.showMessage('已保存并批准！');
+                        this.generatedDraft = null;
+                        this.generateForm.topic = '';
+                        this.loadStats();
+                    } catch (err) {
+                        this.showMessage('操作失败', 'error');
+                    }
+                },
+
+                // 加载配置
+                async loadConfig() {
+                    this.currentView = 'settings';
+                    this.loading = true;
+
+                    try {
+                        const res = await axios.get('/api/config');
+                        this.configForm = res.data.data;
+                    } catch (err) {
+                        this.showMessage('加载配置失败', 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                // 保存配置
+                async saveConfig() {
+                    try {
+                        await axios.post('/api/config', this.configForm);
+                        this.showMessage('配置已保存');
+                        // 重新加载配置
+                        const res = await axios.get('/api/config');
+                        this.configForm = res.data.data;
+                    } catch (err) {
+                        this.showMessage('保存失败', 'error');
+                    }
+                },
+
+                // 格式化日期
+                formatDate(dateStr) {
+                    if (!dateStr) return '-';
+                    const date = new Date(dateStr);
+                    return date.toLocaleString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                },
+
+                // 获取状态文本
+                getStatusText(status) {
+                    const map = {
+                        'draft': '待审核',
+                        'approved': '已审核',
+                        'rejected': '已拒绝',
+                        'published': '已发布',
+                        'publish_failed': '发布失败'
+                    };
+                    return map[status] || status;
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
