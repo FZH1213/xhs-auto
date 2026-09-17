@@ -53,6 +53,11 @@ if ! python -c "import fastapi" 2>/dev/null; then
     echo "✓ 依赖安装成功"
 fi
 
+# 安装 Playwright 浏览器驱动
+echo ""
+echo "🌐 检查并安装 Playwright 浏览器驱动..."
+python -m playwright install chromium 2>/dev/null || true
+
 # 启动Web服务
 echo ""
 echo "🚀 启动 Web 服务..."

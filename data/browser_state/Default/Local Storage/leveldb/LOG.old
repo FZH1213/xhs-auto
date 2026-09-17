@@ -1,0 +1,8 @@
+2026/09/17-14:36:02.356 31011 Reusing MANIFEST /Users/becky/Desktop/FZH/前端通关册/小红书自动发布/data/browser_state/Default/Local Storage/leveldb/MANIFEST-000001
+2026/09/17-14:36:02.362 31011 Recovering log #3
+2026/09/17-14:36:02.362 31011 Level-0 table #3: started
+2026/09/17-14:36:02.365 31011 Level-0 table #3: 25022 bytes OK
+2026/09/17-14:36:02.366 31011 Recovering log #4
+2026/09/17-14:36:02.366 31011 Reusing old log /Users/becky/Desktop/FZH/前端通关册/小红书自动发布/data/browser_state/Default/Local Storage/leveldb/000004.log 
+2026/09/17-14:36:02.368 31011 Delete type=0 #3
+2026/09/17-14:36:02.368 31011 Delete type=2 #5

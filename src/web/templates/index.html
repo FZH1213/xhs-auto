@@ -415,6 +415,40 @@
             </div>
         </div>
 
+        <!-- 发布状态栏 -->
+        <div class="card" style="padding: 15px 25px; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <div style="font-size: 14px;">
+                        <i class="ri-calendar-check-line" style="color: #667eea;"></i>
+                        今日发布: <strong>{{ publishStatus.published_today }}</strong>/{{ publishStatus.daily_limit }}
+                    </div>
+                    <div v-if="!publishStatus.can_publish" style="font-size: 14px; color: #f59e0b;">
+                        <i class="ri-time-line"></i>
+                        等待 {{ formatWaitTime(publishStatus.next_available_time) }} 后可发布
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <!-- 用户信息显示 -->
+                    <div v-if="loginStatus.logged_in && loginStatus.user_info" style="display: flex; align-items: center; gap: 10px;">
+                        <img v-if="loginStatus.user_info.avatar" :src="loginStatus.user_info.avatar" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
+                        <span style="font-size: 14px; color: #333;">{{ loginStatus.user_info.name || '小红书用户' }}</span>
+                    </div>
+
+                    <div style="font-size: 14px;" :style="{color: loginStatus.logged_in ? '#10b981' : '#ef4444'}">
+                        <i :class="loginStatus.logged_in ? 'ri-checkbox-circle-line' : 'ri-close-circle-line'"></i>
+                        {{ loginStatus.logged_in ? '已登录' : '未登录' }}
+                    </div>
+                    <button v-if="!loginStatus.logged_in" class="btn btn-sm" @click="triggerLogin" style="padding: 6px 16px; font-size: 13px;">
+                        <i class="ri-login-box-line"></i> 登录小红书
+                    </button>
+                    <button v-if="loginStatus.logged_in" class="btn btn-sm" @click="closeBrowser" style="padding: 6px 16px; font-size: 13px; background: #6b7280;">
+                        <i class="ri-close-circle-line"></i> 关闭浏览器
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Home View -->
         <div v-if="currentView === 'home'">
             <div class="stats-grid">
@@ -584,6 +618,14 @@
                     <button class="btn btn-success" v-if="currentDraft && currentDraft.status === 'draft'" @click="approveDraft(currentDraft.id)">
                         <i class="ri-check-line"></i> 批准
                     </button>
+                    <!-- 发布按钮 -->
+                    <button class="btn btn-primary"
+                            v-if="currentDraft && currentDraft.status === 'approved'"
+                            @click="publishDraft(currentDraft.id)"
+                            :disabled="publishing">
+                        <i class="ri-send-plane-line"></i>
+                        {{ publishing ? '发布中...' : '发布到小红书' }}
+                    </button>
                     <button class="btn btn-danger" @click="deleteDraft(currentDraft.id)">
                         <i class="ri-delete-bin-line"></i> 删除
                     </button>
@@ -608,6 +650,31 @@
                 <div class="topics-box">
                     <label style="display: block; margin-bottom: 10px;">话题标签</label>
                     <span v-for="topic in currentDraft.topics" :key="topic" class="topic-tag">#{{ topic }}</span>
+                </div>
+
+                <!-- 发布状态显示 -->
+                <div v-if="currentDraft.status === 'published'" style="margin-top: 20px; padding: 15px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                    <div style="font-weight: bold; color: #059669; margin-bottom: 10px;">
+                        <i class="ri-checkbox-circle-line"></i> 已成功发布
+                    </div>
+                    <div v-if="currentDraft.published_at" style="font-size: 13px; color: #047857;">
+                        发布时间: {{ formatDate(currentDraft.published_at) }}
+                    </div>
+                    <div v-if="currentDraft.publish_url" style="margin-top: 8px;">
+                        <a :href="currentDraft.publish_url" target="_blank" style="color: #3b82f6; text-decoration: none;">
+                            <i class="ri-external-link-line"></i> 查看笔记
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 发布失败显示 -->
+                <div v-if="currentDraft.status === 'publish_failed'" style="margin-top: 20px; padding: 15px; background: #fef2f2; border-radius: 8px; border-left: 4px solid #ef4444;">
+                    <div style="font-weight: bold; color: #dc2626; margin-bottom: 10px;">
+                        <i class="ri-error-warning-line"></i> 发布失败
+                    </div>
+                    <div style="font-size: 13px; color: #991b1b;">
+                        {{ currentDraft.publish_error || '未知错误' }}
+                    </div>
                 </div>
 
                 <div v-if="currentDraft.images && currentDraft.images.length">
@@ -765,6 +832,18 @@
                     message: {
                         text: '',
                         type: 'success'
+                    },
+
+                    // 发布相关
+                    publishing: false,
+                    publishStatus: {
+                        daily_limit: 3,
+                        published_today: 0,
+                        can_publish: true,
+                        next_available_time: 0
+                    },
+                    loginStatus: {
+                        logged_in: false
                     }
                 };
             },
@@ -772,6 +851,8 @@
             mounted() {
                 this.loadStats();
                 this.loadStyles();
+                this.loadPublishStatus();
+                this.loadLoginStatus();
             },
 
             methods: {
@@ -971,6 +1052,132 @@
                         'publish_failed': '发布失败'
                     };
                     return map[status] || status;
+                },
+
+                // ==================== 发布相关方法 ====================
+
+                // 加载发布状态
+                async loadPublishStatus() {
+                    try {
+                        const res = await axios.get('/api/publish/status');
+                        this.publishStatus = res.data.data;
+                    } catch (err) {
+                        console.error('加载发布状态失败:', err);
+                    }
+                },
+
+                // 加载登录状态
+                async loadLoginStatus() {
+                    try {
+                        const res = await axios.get('/api/publish/login-status');
+                        this.loginStatus = res.data.data;
+
+                        // 如果有用户信息，打印日志
+                        if (this.loginStatus.user_info) {
+                            console.log('用户信息:', this.loginStatus.user_info);
+                        }
+                    } catch (err) {
+                        console.error('加载登录状态失败:', err);
+                        this.loginStatus = {
+                            logged_in: false,
+                            message: '加载失败'
+                        };
+                    }
+                },
+
+                // 发布草稿
+                async publishDraft(id) {
+                    // 先检查登录状态
+                    if (!this.loginStatus.logged_in) {
+                        this.showMessage('请先登录小红书', 'error');
+                        return;
+                    }
+
+                    if (!confirm('确定要发布到小红书吗？\n\n注意：浏览器窗口会自动操作，请勿手动关闭。')) return;
+
+                    this.publishing = true;
+                    const startTime = Date.now();
+
+                    try {
+                        console.log('开始发布草稿:', id);
+                        const res = await axios.put(`/api/drafts/${id}/publish`);
+                        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+                        console.log('发布完成，耗时:', elapsed, '秒');
+
+                        this.showMessage(`发布成功！耗时 ${elapsed} 秒`);
+                        this.currentDraft.status = 'published';
+                        this.currentDraft.publish_url = res.data.data.publish_url;
+                        this.currentDraft.published_at = new Date().toISOString();
+                        this.loadStats();
+                        this.loadPublishStatus();
+                    } catch (err) {
+                        const error = err.response?.data?.detail || '发布失败';
+                        console.error('发布错误:', error);
+                        this.showMessage(error, 'error');
+
+                        // 如果是登录失效，更新状态
+                        if (err.response?.status === 401) {
+                            this.loginStatus.logged_in = false;
+                        }
+                    } finally {
+                        this.publishing = false;
+                    }
+                },
+
+                // 触发登录
+                async triggerLogin() {
+                    try {
+                        const res = await axios.post('/api/publish/login');
+                        this.showMessage(res.data.message || '请在浏览器中完成登录');
+
+                        // 轮询检查登录状态
+                        const checkInterval = setInterval(async () => {
+                            try {
+                                const res = await axios.get('/api/publish/login-status');
+                                if (res.data.data.logged_in) {
+                                    clearInterval(checkInterval);
+                                    this.loginStatus = res.data.data;
+                                    this.showMessage('登录成功！');
+                                }
+                            } catch (err) {
+                                console.error('检查登录状态失败:', err);
+                            }
+                        }, 3000);
+
+                        // 5分钟后停止轮询
+                        setTimeout(() => {
+                            clearInterval(checkInterval);
+                            // 如果还没登录，提示超时
+                            if (!this.loginStatus.logged_in) {
+                                this.showMessage('登录超时，请重试', 'error');
+                            }
+                        }, 300000);
+                    } catch (err) {
+                        const error = err.response?.data?.detail || '触发登录失败';
+                        this.showMessage(error, 'error');
+                    }
+                },
+
+                // 格式化等待时间
+                formatWaitTime(seconds) {
+                    if (seconds < 60) return `${seconds}秒`;
+                    const minutes = Math.floor(seconds / 60);
+                    const secs = seconds % 60;
+                    return `${minutes}分${secs}秒`;
+                },
+
+                // 关闭浏览器
+                async closeBrowser() {
+                    if (!confirm('确定要关闭浏览器窗口吗？这会清除登录状态。')) return;
+
+                    try {
+                        await axios.post('/api/publish/close-browser');
+                        this.showMessage('浏览器已关闭');
+                        this.loginStatus.logged_in = false;
+                    } catch (err) {
+                        this.showMessage('关闭浏览器失败', 'error');
+                    }
                 }
             }
         }).mount('#app');
